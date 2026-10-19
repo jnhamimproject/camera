@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#14181c">
+<title>Camera Tool</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{--bg:#14181c;--panel:#1e252b;--line:#2f3a42;--tx:#e8eef2;--mu:#8fa0ab;--ac:#3ddc97;--ac2:#0b3d2a;--wr:#ff6b5e}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font-family:system-ui,"Noto Sans Bengali","Hind Siliguri",sans-serif;overscroll-behavior:none}
+[hidden]{display:none!important}
+button,input,select{font:inherit;color:var(--tx)}
+button{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer}
+button.p{background:var(--ac);color:var(--ac2);border-color:var(--ac);font-weight:700}
+button.d{color:var(--wr)}
+input,select{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0;width:100%}
+.st{font-size:13px;color:var(--mu)}
+.scr{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg)}
+header{display:flex;align-items:center;gap:8px;padding:max(10px,env(safe-area-inset-top)) 12px 8px}
+header h1{font-size:20px;margin:0;flex:1}header b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic{padding:8px 12px;min-height:40px}
+.body{flex:1;overflow:auto;padding:8px 12px 90px}
+.pgrid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:8px 12px 100px;align-content:start}
+.pc{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.pv{aspect-ratio:1;background:#0c0f12 center/cover no-repeat}
+.pn{padding:8px 10px;background:var(--ac2);display:flex;justify-content:space-between;gap:6px;font-weight:600;font-size:14px}
+.pn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:max(16px,env(safe-area-inset-bottom));padding:14px 26px;border-radius:30px;min-height:52px;box-shadow:0 4px 18px #0008}
+.cfab{width:70px;height:70px;border-radius:50%;padding:0;font-size:30px;background:#fff;border:4px solid var(--ac)}
+.it{display:flex;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.it img{width:56px;height:56px;border-radius:8px;object-fit:cover;background:#0c0f12;flex:none}
+.im{min-width:0}.im b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}.im small{color:var(--mu)}
+.lb{display:block;font-size:13px;color:var(--mu);margin:8px 0}
+.fr{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;margin:8px 0;display:flex;flex-direction:column;gap:6px}
+.r1,.r2{display:flex;gap:6px;align-items:center}.r1 input[type=checkbox]{width:22px;height:22px;flex:none}
+.r1 .t{flex:3}.r1 .cd{flex:1;text-align:center}.r1 button{padding:4px 10px;min-height:38px}
+.bottom{padding:10px 12px max(12px,env(safe-area-inset-bottom));display:flex;gap:8px;border-top:1px solid var(--line);background:var(--panel)}.bottom button{flex:1}
+.cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.ctop,.cbot{position:absolute;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;z-index:2}
+.ctop{top:max(0px,env(safe-area-inset-top))}.cbot{bottom:max(10px,env(safe-area-inset-bottom))}
+.cam button.ic{background:#0009;border-color:#fff3}
+#shut{width:76px;height:76px;border-radius:50%;background:#fff;border:5px solid #fff6;padding:0;box-shadow:0 0 0 3px #fff inset}
+#shut:active{transform:scale(.92)}
+#sheet{position:fixed;inset:0;background:#000a;z-index:20;display:flex;align-items:flex-end}
+#sbox{background:var(--panel);width:100%;border-radius:20px 20px 0 0;padding:14px 14px max(14px,env(safe-area-inset-bottom));max-height:88%;overflow:auto;display:flex;flex-direction:column;gap:8px}
+#sbox .top{display:flex;gap:10px;align-items:center}#simg{width:64px;height:64px;border-radius:10px;object-fit:cover;background:#000}
+#sname{font-weight:700;color:var(--ac);word-break:break-all;font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{padding:8px 14px;min-height:40px;border-radius:20px}.chip.on{background:var(--ac);color:var(--ac2);border-color:var(--ac);font-weight:700}
+#viewer{position:fixed;inset:0;background:#000;z-index:25;display:flex;flex-direction:column}
+#viewer img{flex:1;min-height:0;object-fit:contain;width:100%}
+#vbar{padding:10px 12px max(12px,env(safe-area-inset-bottom));background:var(--panel);display:flex;flex-direction:column;gap:8px}
+#vbar .row{display:flex;gap:8px}#vbar button{flex:1}
+#toast{position:fixed;left:12px;right:12px;bottom:110px;background:#000d;border:1px solid var(--line);padding:10px 14px;border-radius:12px;z-index:40;text-align:center;font-size:14px;pointer-events:none}
+</style>
+</head>
+<body>
+
+<div id="s-home" class="scr">
+  <header><h1>Camera Tool</h1><span id="stor" class="st"></span></header>
+  <div id="pgrid" class="pgrid"></div>
+  <button id="newp" class="fab p">＋ New Project</button>
+</div>
+
+<div id="s-form" class="scr" hidden>
+  <header><button id="fback" class="ic">◀</button><b id="ftitle"></b></header>
+  <div id="fbody" class="body"></div>
+  <div class="bottom"><button id="fdel" class="d" hidden>Delete</button><button id="fsave" class="p">Save</button></div>
+</div>
+
+<div id="s-proj" class="scr" hidden>
+  <header><button id="pback" class="ic">◀</button><b id="ptitle"></b><span id="pcount" class="st"></span>
+    <button id="pset" class="ic">⚙</button><button id="pzip" class="ic">⬇ ZIP</button></header>
+  <div id="plist" class="body" style="padding:0 0 110px"></div>
+  <button id="pcam" class="fab cfab">📷</button>
+</div>
+
+<div id="s-cam" class="scr cam" hidden>
+  <video id="vid" autoplay playsinline muted></video>
+  <div class="ctop"><button id="cclose" class="ic">✕</button><span id="ccount" class="st" style="background:#0009;padding:6px 10px;border-radius:10px"></span><button id="cflip" class="ic">⟲</button></div>
+  <div class="cbot"><button id="csys" class="ic">System</button><button id="shut"></button><span style="width:72px"></span></div>
+</div>
+
+<div id="sheet" hidden><div id="sbox">
+  <div class="top"><img id="simg"><div id="sname"></div></div>
+  <div id="sbody"></div>
+  <div class="row" style="display:flex;gap:8px"><button id="scancel" style="flex:1">Retake</button><button id="sok" class="p" style="flex:2">Save</button></div>
+</div></div>
+
+<div id="viewer" hidden><img id="vimg"><div id="vbar"><div id="vname" class="st"></div>
+  <div class="row"><button id="vedit">Edit info</button><button id="vdl">Download</button></div>
+  <div class="row"><button id="vdel" class="d">Delete</button><button id="vclose" class="p">Close</button></div></div></div>
+
+<div id="toast" hidden></div>
+<input id="sys" type="file" accept="image/*" capture="environment" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+if('serviceWorker' in navigator)navigator.serviceWorker.register('coi-serviceworker.js').catch(()=>{});
+const $=id=>document.getElementById(id);
+const h=s=>{const t=document.createElement('template');t.innerHTML=s.trim();return t.content.firstChild};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const mb=b=>(b/1048576).toFixed(2)+' MB';
+const dt=t=>new Date(t).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+function toast(t){const e=$('toast');e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>e.hidden=true,2200)}
+
+/* ---------- IndexedDB (p: projects, f: photo info+thumb, b: photo blobs) ---------- */
+let _db;const R=r=>new Promise((a,b)=>{r.onsuccess=()=>a(r.result);r.onerror=()=>b(r.error)});
+const db=()=>_db||(_db=new Promise((res,rej)=>{const r=indexedDB.open('camtool',1);
+  r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('p',{keyPath:'id'});d.createObjectStore('b',{keyPath:'id'});d.createObjectStore('f',{keyPath:'id'}).createIndex('pid','pid')};
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
+const put=async(n,v)=>{const d=await db();return R(d.transaction(n,'readwrite').objectStore(n).put(v))};
+const get=async(n,k)=>{const d=await db();return R(d.transaction(n).objectStore(n).get(k))};
+const all=async n=>{const d=await db();return R(d.transaction(n).objectStore(n).getAll())};
+const del=async(n,k)=>{const d=await db();return R(d.transaction(n,'readwrite').objectStore(n).delete(k))};
+const byPid=async pid=>{const d=await db();return R(d.transaction('f').objectStore('f').index('pid').getAll(pid))};
+
+/* ---------- Naming ---------- */
+function buildName(P,m){
+  const parts=[];
+  for(const f of P.fields){if(!f.on)continue;
+    let v=String(m[f.id]??'').trim().replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'_');
+    if(!v)continue;parts.push(f.plain?v:v+(f.code||''))}
+  return parts.join('_')||('IMG_'+new Date().toISOString().replace(/\D/g,'').slice(0,14))}
+function uniq(base,ext,names){let n=base+ext,k=1;while(names.has(n.toLowerCase()))n=base+' ('+k+++')'+ext;return n}
+const extOf=b=>/png/i.test(b.type)?'.png':'.jpg';
+async function mkThumb(b){try{const bm=await createImageBitmap(b,{imageOrientation:'from-image',resizeWidth:200,resizeQuality:'medium'});
+  const c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;c.getContext('2d').drawImage(bm,0,0);
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',0.7))}catch(e){return null}}
+
+/* ---------- Screens ---------- */
+let P=null,cur='home',urls=[];
+const rv=()=>{urls.forEach(u=>URL.revokeObjectURL(u));urls=[]};
+const ou=b=>{const u=URL.createObjectURL(b);urls.push(u);return u};
+function show(id){cur=id;document.querySelectorAll('.scr').forEach(e=>e.hidden=e.id!=='s-'+id);if(id!=='cam')stopCam()}
+
+async function home(){
+  show('home');rv();const g=$('pgrid');g.innerHTML='';
+  const ps=(await all('p')).sort((a,b)=>b.t-a.t);
+  if(!ps.length)g.innerHTML='<div class="st" style="grid-column:1/-1;text-align:center;padding:40px 0">No projects yet</div>';
+  for(const p of ps){const fs=(await byPid(p.id)).sort((a,b)=>b.t-a.t),l=fs[0];
+    const c=h(`<div class="pc"><div class="pv" style="${l&&l.thumb?`background-image:url(${ou(l.thumb)})`:''}"></div><div class="pn"><span>${esc(p.name)}</span><small>${fs.length}</small></div></div>`);
+    c.onclick=()=>openProject(p.id);g.appendChild(c)}
+  try{const e=await navigator.storage.estimate();$('stor').textContent=mb(e.usage)+' used'}catch(x){}}
+$('newp').onclick=()=>form(null);
+
+/* ---------- Project form ---------- */
+const defFields=()=>[
+  {id:'s',title:'সিরিয়াল',code:'s',type:'num',on:true,mode:'auto',start:1},
+  {id:'r',title:'রোল',code:'r',type:'num',on:true,mode:'auto',start:1},
+  {id:'c',title:'ক্লাস',code:'c',type:'list',on:true,values:[]},
+  {id:'n',title:'নাম',code:'n',type:'text',on:true,plain:true}];
+let D=null;
+function form(p){
+  D=p?JSON.parse(JSON.stringify(p)):{name:'',fields:defFields()};
+  $('ftitle').textContent=p?'Project Settings':'New Project';$('fdel').hidden=!p;show('form');renderForm()}
+function renderForm(){
+  const b=$('fbody');b.innerHTML='';
+  b.appendChild(h(`<label class="lb">Project name<input id="fn" value="${esc(D.name)}" placeholder="e.g. Class 9 – Section A"></label>`));
+  $('fn').oninput=e=>D.name=e.target.value;
+  D.fields.forEach((f,i)=>{
+    const lock=!f.custom;
+    b.appendChild(h(`<div class="fr" data-i="${i}"><div class="r1">
+      <input type="checkbox" data-a="on" ${f.on?'checked':''}>
+      <input class="t" data-a="title" value="${esc(f.title)}" placeholder="Title">
+      <input class="cd" data-a="code" value="${f.plain?'':esc(f.code)}" ${lock?'disabled':''} ${f.plain?'placeholder="–" disabled':'placeholder="code"'}>
+      <button data-a="up">↑</button><button data-a="dn">↓</button>${f.custom?'<button data-a="rm" class="d">✕</button>':''}</div>`
+      +(f.type==='num'?`<div class="r2"><select data-a="mode"><option value="auto" ${f.mode!=='custom'?'selected':''}>Auto +1</option><option value="custom" ${f.mode==='custom'?'selected':''}>Custom</option></select><input type="number" data-a="start" value="${f.start||1}" placeholder="Start"></div>`:'')
+      +(f.type==='list'?`<div class="r2"><input data-a="values" value="${esc((f.values||[]).join(', '))}" placeholder="Classes: 09, 10, 11"></div>`:'')+`</div>`));
+  });
+  const add=h('<button class="p" style="width:100%;margin-top:6px">＋ Add field</button>');
+  add.onclick=()=>{D.fields.push({id:'x'+uid(),title:'',code:'',type:'text',on:true,custom:true});renderForm();$('fbody').scrollTop=1e5};
+  b.appendChild(add)}
+$('fbody').addEventListener('input',e=>{
+  const a=e.target.dataset.a,row=e.target.closest('.fr');if(!a||!row)return;const f=D.fields[+row.dataset.i];
+  if(a==='on')f.on=e.target.checked;else if(a==='title')f.title=e.target.value;else if(a==='code')f.code=e.target.value.trim();
+  else if(a==='mode')f.mode=e.target.value;else if(a==='start')f.start=parseInt(e.target.value)||1;
+  else if(a==='values')f.values=e.target.value.split(',').map(x=>x.trim()).filter(Boolean)});
+$('fbody').addEventListener('click',e=>{
+  const a=e.target.dataset.a,row=e.target.closest('.fr');if(!row||!['up','dn','rm'].includes(a))return;
+  const i=+row.dataset.i,F=D.fields;
+  if(a==='rm')F.splice(i,1);else{const j=a==='up'?i-1:i+1;if(j<0||j>=F.length)return;[F[i],F[j]]=[F[j],F[i]]}
+  renderForm()});
+$('fback').onclick=()=>P&&D&&D.id?proj():home();
+$('fsave').onclick=async()=>{
+  const bad=D.fields.find(f=>f.custom&&(!f.title.trim()||!f.code));
+  if(bad){alert('Custom field needs a title and a code');return}
+  const old=D.id?P:null,p=D;p.name=(p.name||'').trim()||'Project';
+  if(!old){p.id=uid();p.t=Date.now();p.next={};p.last={}}
+  for(const f of p.fields)if(f.type==='num'){
+    const of=old&&old.fields.find(x=>x.id===f.id);
+    if(!old||!of||of.start!==f.start||p.next[f.id]==null)p.next[f.id]=f.start||1}
+  await put('p',p);P=p;try{navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+  proj()};
+$('fdel').onclick=async()=>{
+  if(!confirm('Delete this project and all its photos?'))return;
+  for(const f of await byPid(P.id)){await del('b',f.id);await del('f',f.id)}
+  await del('p',P.id);P=null;home()};
+
+/* ---------- Project view ---------- */
+async function openProject(id){P=await get('p',id);proj()}
+async function proj(){
+  show('proj');rv();$('ptitle').textContent=P.name;
+  const fs=(await byPid(P.id)).sort((a,b)=>b.t-a.t);$('pcount').textContent=fs.length;
+  const l=$('plist');l.innerHTML='';
+  if(!fs.length)l.innerHTML='<div class="st" style="text-align:center;padding:40px 0">No photos yet</div>';
+  fs.forEach(f=>{const it=h(`<div class="it"><img src="${f.thumb?ou(f.thumb):''}"><div class="im"><b>${esc(f.name)}</b><small>${mb(f.size)} · ${dt(f.t)}</small></div></div>`);
+    it.onclick=()=>view(f);l.appendChild(it)})}
+$('pback').onclick=home;
+$('pset').onclick=()=>form(P);
+$('pcam').onclick=openCam;
+$('pzip').onclick=async()=>{
+  const fs=await byPid(P.id);if(!fs.length)return toast('No photos');
+  const z=new JSZip();let i=0;
+  for(const f of fs){toast('Zipping '+(++i)+' / '+fs.length);z.file(f.name,(await get('b',f.id)).blob)}
+  dl(await z.generateAsync({type:'blob',compression:'STORE'}),P.name.replace(/[\\/:*?"<>|]+/g,'')+'.zip');toast('Done')};
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+
+/* ---------- Viewer ---------- */
+let VF=null,VB=null,VU=null;
+async function view(f){VF=f;VB=(await get('b',f.id)).blob;VU=URL.createObjectURL(VB);$('vimg').src=VU;$('vname').textContent=f.name;$('viewer').hidden=false}
+function closeV(){$('viewer').hidden=true;VU&&URL.revokeObjectURL(VU);VU=null;$('vimg').removeAttribute('src')}
+$('vclose').onclick=closeV;
+$('vdl').onclick=()=>dl(VB,VF.name);
+$('vedit').onclick=()=>{const f=VF,b=VB;closeV();openSheet(b,f)};
+$('vdel').onclick=async()=>{if(!confirm('Delete this photo?'))return;await del('b',VF.id);await del('f',VF.id);closeV();proj()};
+
+/* ---------- Camera ---------- */
+let stream=null,ic=null,facing='environment';
+async function startCam(){
+  stopCam();
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:4096},height:{ideal:3072}},audio:false});
+    $('vid').srcObject=stream;const t=stream.getVideoTracks()[0];ic='ImageCapture' in window?new ImageCapture(t):null}
+  catch(e){toast('Camera not available. Use System camera.')}}
+function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}ic=null}
+async function openCam(){show('cam');updCount();startCam()}
+async function updCount(){$('ccount').textContent=(await byPid(P.id)).length+' photos'}
+$('cclose').onclick=proj;
+$('cflip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
+$('csys').onclick=()=>$('sys').click();
+$('sys').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f&&P)openSheet(f)};
+$('shut').onclick=async()=>{
+  if(!stream)return;let blob=null;
+  try{if(ic)blob=await ic.takePhoto()}catch(e){}
+  if(!blob){const v=$('vid'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+    blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.95))}
+  openSheet(blob)};
+
+/* ---------- Info sheet (name builder) ---------- */
+let SU=null;
+function openSheet(blob,file){
+  const m=file?{...file.meta}:{},body=$('sbody');body.innerHTML='';
+  const upd=()=>$('sname').textContent=buildName(P,m)+extOf(blob);
+  for(const f of P.fields){if(!f.on)continue;
+    if(!file){
+      if(f.type==='num')m[f.id]=f.mode==='custom'?'':String(P.next[f.id]??f.start??1);
+      else if(f.type==='list')m[f.id]=P.last[f.id]||(f.values||[])[0]||'';
+      else m[f.id]=f.plain?'':(P.last[f.id]||'')}
+    const wrap=h(`<div><label class="lb">${esc(f.title)}${f.code&&!f.plain?' ('+esc(f.code)+')':''}</label></div>`);
+    if(f.type==='list'&&(f.values||[]).length){
+      const ch=h('<div class="chips"></div>');
+      const vals=[...f.values];if(m[f.id]&&!vals.includes(m[f.id]))vals.push(m[f.id]);
+      const draw=()=>{ch.innerHTML='';vals.forEach(v=>{const c=h(`<button class="chip ${m[f.id]===v?'on':''}">${esc(v)}</button>`);c.onclick=()=>{m[f.id]=v;draw();upd()};ch.appendChild(c)});
+        const add=h('<button class="chip">＋</button>');add.onclick=()=>{const v=(prompt('New value')||'').trim();if(v){if(!vals.includes(v)){vals.push(v);f.values.push(v)}m[f.id]=v;draw();upd();put('p',P)}};ch.appendChild(add)};
+      draw();wrap.appendChild(ch)}
+    else{const inp=h(`<input data-k="${f.id}" value="${esc(m[f.id])}" ${f.type==='num'?'inputmode="numeric"':''} autocomplete="off">`);
+      inp.oninput=()=>{m[f.id]=inp.value;upd()};inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('sok').click()}};wrap.appendChild(inp)}
+    body.appendChild(wrap)}
+  if(SU)URL.revokeObjectURL(SU);SU=URL.createObjectURL(blob);$('simg').src=SU;
+  upd();$('sheet').hidden=false;
+  setTimeout(()=>{const i=body.querySelector('input:not([inputmode])')||body.querySelector('input');i&&i.focus()},150);
+  $('scancel').textContent=file?'Cancel':'Retake';
+  $('scancel').onclick=()=>$('sheet').hidden=true;
+  $('sok').onclick=async()=>{
+    $('sok').disabled=true;
+    try{
+      const names=new Set((await byPid(P.id)).filter(x=>!file||x.id!==file.id).map(x=>x.name.toLowerCase()));
+      const name=uniq(buildName(P,m),extOf(blob),names);
+      if(file){file.name=name;file.meta=m;await put('f',file);toast('Updated')}
+      else{
+        const id=uid(),thumb=await mkThumb(blob);
+        await put('b',{id,blob});await put('f',{id,pid:P.id,name,meta:m,size:blob.size,t:Date.now(),thumb});
+        for(const f of P.fields){if(!f.on)continue;
+          if(f.type==='num'&&f.mode!=='custom'){const v=parseInt(m[f.id]);if(!isNaN(v))P.next[f.id]=v+1}
+          else if(f.type!=='num'&&!f.plain)P.last[f.id]=m[f.id]}
+        await put('p',P);toast('Saved: '+name)}
+      $('sheet').hidden=true;
+      if(cur==='cam')updCount();else proj();
+    }catch(e){alert('Save failed: '+e.message)}
+    $('sok').disabled=false}}
+
+home();
+</script>
+</body>
+</html>
