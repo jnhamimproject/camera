@@ -53,6 +53,10 @@ header h1{font-size:20px;margin:0;flex:1}header b{flex:1;overflow:hidden;text-ov
 #vbar{padding:10px 12px max(12px,env(safe-area-inset-bottom));background:var(--panel);display:flex;flex-direction:column;gap:8px}
 #vbar .row{display:flex;gap:8px}#vbar button{flex:1}
 #toast{position:fixed;left:12px;right:12px;bottom:110px;background:#000d;border:1px solid var(--line);padding:10px 14px;border-radius:12px;z-index:40;text-align:center;font-size:14px;pointer-events:none}
+#crop{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;background:var(--bg)}
+#cst{flex:1;position:relative;overflow:hidden;touch-action:none;background:#000}
+#cimg{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-drag:none;will-change:transform}
+#cfr{position:absolute;pointer-events:none;border:2px solid var(--ac);box-shadow:0 0 0 999px #000b}
 </style>
 </head>
 <body>
@@ -76,10 +80,9 @@ header h1{font-size:20px;margin:0;flex:1}header b{flex:1;overflow:hidden;text-ov
   <button id="pcam" class="fab cfab">📷</button>
 </div>
 
-<div id="s-cam" class="scr cam" hidden>
-  <video id="vid" autoplay playsinline muted></video>
-  <div class="ctop"><button id="cclose" class="ic">✕</button><span id="ccount" class="st" style="background:#0009;padding:6px 10px;border-radius:10px"></span><button id="cflip" class="ic">⟲</button></div>
-  <div class="cbot"><button id="csys" class="ic">System</button><button id="shut"></button><span style="width:72px"></span></div>
+<div id="crop" hidden>
+  <div id="cst"><img id="cimg"><div id="cfr"></div></div>
+  <div class="bottom"><button id="ccancel">Retake</button><button id="cok" class="p">Use</button></div>
 </div>
 
 <div id="sheet" hidden><div id="sbox">
@@ -134,7 +137,7 @@ async function mkThumb(b){try{const bm=await createImageBitmap(b,{imageOrientati
 let P=null,cur='home',urls=[];
 const rv=()=>{urls.forEach(u=>URL.revokeObjectURL(u));urls=[]};
 const ou=b=>{const u=URL.createObjectURL(b);urls.push(u);return u};
-function show(id){cur=id;document.querySelectorAll('.scr').forEach(e=>e.hidden=e.id!=='s-'+id);if(id!=='cam')stopCam()}
+function show(id){cur=id;document.querySelectorAll('.scr').forEach(e=>e.hidden=e.id!=='s-'+id);}
 
 async function home(){
   show('home');rv();const g=$('pgrid');g.innerHTML='';
@@ -143,7 +146,7 @@ async function home(){
   for(const p of ps){const fs=(await byPid(p.id)).sort((a,b)=>b.t-a.t),l=fs[0];
     const c=h(`<div class="pc"><div class="pv" style="${l&&l.thumb?`background-image:url(${ou(l.thumb)})`:''}"></div><div class="pn"><span>${esc(p.name)}</span><small>${fs.length}</small></div></div>`);
     c.onclick=()=>openProject(p.id);g.appendChild(c)}
-  try{const e=await navigator.storage.estimate();$('stor').textContent=mb(e.usage)+' used'}catch(x){}}
+  try{const e=await navigator.storage.estimate();$('stor').textContent='Storage '+mb(e.usage)}catch(x){}}
 $('newp').onclick=()=>form(null);
 
 /* ---------- Project form ---------- */
@@ -155,11 +158,21 @@ const defFields=()=>[
 let D=null;
 function form(p){
   D=p?JSON.parse(JSON.stringify(p)):{name:'',fields:defFields()};
+  D.size=D.size||{w:0,h:0};if(D.manual===undefined)D.manual=true;if(D.reopen===undefined)D.reopen=true;
   $('ftitle').textContent=p?'Project Settings':'New Project';$('fdel').hidden=!p;show('form');renderForm()}
 function renderForm(){
   const b=$('fbody');b.innerHTML='';
   b.appendChild(h(`<label class="lb">Project name<input id="fn" value="${esc(D.name)}" placeholder="e.g. Class 9 – Section A"></label>`));
   $('fn').oninput=e=>D.name=e.target.value;
+  const sz=D.size,pre=[['Original',0,0],['1:1',1080,1080],['3:4',900,1200],['4:5',1080,1350]];
+  b.appendChild(h(`<div class="fr"><div class="lb" style="margin:0">Photo size (crop)</div>
+    <div class="chips">${pre.map(x=>`<button class="chip ${sz.w===x[1]&&sz.h===x[2]?'on':''}" data-w="${x[1]}" data-h="${x[2]}">${x[0]}</button>`).join('')}</div>
+    <div class="r2"><input id="fw" type="number" inputmode="numeric" placeholder="W" value="${sz.w||''}"><span class="st">×</span><input id="fh" type="number" inputmode="numeric" placeholder="H" value="${sz.h||''}"></div>
+    <label class="r2 st"><input type="checkbox" id="fm" style="width:22px;height:22px" ${D.manual?'checked':''}> Adjust each photo (off = auto center crop)</label>
+    <label class="r2 st"><input type="checkbox" id="fro" style="width:22px;height:22px" ${D.reopen?'checked':''}> Open camera again after save</label></div>`));
+  const sw=()=>{const w=parseInt($('fw').value)||0,hh=parseInt($('fh').value)||0;D.size=w&&hh?{w,h:hh}:{w:0,h:0}};
+  $('fw').oninput=$('fh').oninput=()=>{sw();b.querySelectorAll('.chip[data-w]').forEach(c=>c.classList.remove('on'))};
+  $('fm').onchange=e=>D.manual=e.target.checked;$('fro').onchange=e=>D.reopen=e.target.checked;
   D.fields.forEach((f,i)=>{
     const lock=!f.custom;
     b.appendChild(h(`<div class="fr" data-i="${i}"><div class="r1">
@@ -179,6 +192,7 @@ $('fbody').addEventListener('input',e=>{
   else if(a==='mode')f.mode=e.target.value;else if(a==='start')f.start=parseInt(e.target.value)||1;
   else if(a==='values')f.values=e.target.value.split(',').map(x=>x.trim()).filter(Boolean)});
 $('fbody').addEventListener('click',e=>{
+  const c=e.target.closest('.chip[data-w]');if(c){D.size={w:+c.dataset.w,h:+c.dataset.h};renderForm();return}
   const a=e.target.dataset.a,row=e.target.closest('.fr');if(!row||!['up','dn','rm'].includes(a))return;
   const i=+row.dataset.i,F=D.fields;
   if(a==='rm')F.splice(i,1);else{const j=a==='up'?i-1:i+1;if(j<0||j>=F.length)return;[F[i],F[j]]=[F[j],F[i]]}
@@ -210,7 +224,6 @@ async function proj(){
     it.onclick=()=>view(f);l.appendChild(it)})}
 $('pback').onclick=home;
 $('pset').onclick=()=>form(P);
-$('pcam').onclick=openCam;
 $('pzip').onclick=async()=>{
   const fs=await byPid(P.id);if(!fs.length)return toast('No photos');
   const z=new JSZip();let i=0;
@@ -227,32 +240,53 @@ $('vdl').onclick=()=>dl(VB,VF.name);
 $('vedit').onclick=()=>{const f=VF,b=VB;closeV();openSheet(b,f)};
 $('vdel').onclick=async()=>{if(!confirm('Delete this photo?'))return;await del('b',VF.id);await del('f',VF.id);closeV();proj()};
 
-/* ---------- Camera ---------- */
-let stream=null,ic=null,facing='environment';
-async function startCam(){
-  stopCam();
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:4096},height:{ideal:3072}},audio:false});
-    $('vid').srcObject=stream;const t=stream.getVideoTracks()[0];ic='ImageCapture' in window?new ImageCapture(t):null}
-  catch(e){toast('Camera not available. Use System camera.')}}
-function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}ic=null}
-async function openCam(){show('cam');updCount();startCam()}
-async function updCount(){$('ccount').textContent=(await byPid(P.id)).length+' photos'}
-$('cclose').onclick=proj;
-$('cflip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
-$('csys').onclick=()=>$('sys').click();
-$('sys').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f&&P)openSheet(f)};
-$('shut').onclick=async()=>{
-  if(!stream)return;let blob=null;
-  try{if(ic)blob=await ic.takePhoto()}catch(e){}
-  if(!blob){const v=$('vid'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
-    blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.95))}
-  openSheet(blob)};
+/* ---------- Capture with the system camera ---------- */
+$('pcam').onclick=()=>$('sys').click();
+$('sys').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f||!P)return;
+  try{const b=await fitPhoto(f);if(b)openSheet(b)}catch(x){alert('Photo error: '+x.message)}};
+function centerCrop(w,h,S){const ar=S.w/S.h;let cw=w,ch=h;if(w/h>ar)cw=h*ar;else ch=w/ar;return[(w-cw)/2,(h-ch)/2,cw,ch]}
+function renderCrop(bm,S,r){const c=document.createElement('canvas');c.width=S.w;c.height=S.h;const x=c.getContext('2d');
+  x.imageSmoothingQuality='high';x.drawImage(bm,r[0],r[1],r[2],r[3],0,0,S.w,S.h);bm.close&&bm.close();
+  return new Promise(o=>c.toBlob(o,'image/jpeg',0.95))}
+async function fitPhoto(f){
+  const S=P.size;if(!S||!S.w||!S.h)return f;
+  const bm=await createImageBitmap(f,{imageOrientation:'from-image'});
+  if(P.manual===false)return renderCrop(bm,S,centerCrop(bm.width,bm.height,S));
+  const r=await cropUI(f,bm.width,bm.height,S);
+  if(!r){bm.close&&bm.close();return null}
+  return renderCrop(bm,S,r)}
+function cropUI(file,W,H,S){return new Promise(res=>{
+  const ov=$('crop'),st=$('cst'),im=$('cimg'),fr=$('cfr'),url=URL.createObjectURL(file);
+  let s=1,tx=0,ty=0,minS=1,F={x:0,y:0,w:0,h:0};
+  const ap=()=>{tx=Math.min(F.x,Math.max(F.x+F.w-W*s,tx));ty=Math.min(F.y,Math.max(F.y+F.h-H*s,ty));im.style.transform=`translate(${tx}px,${ty}px) scale(${s})`};
+  const lay=()=>{const sw=st.clientWidth,sh=st.clientHeight,m=14,ar=S.w/S.h;let fw=sw-2*m,fh=fw/ar;if(fh>sh-2*m){fh=sh-2*m;fw=fh*ar}
+    F={x:(sw-fw)/2,y:(sh-fh)/2,w:fw,h:fh};minS=Math.max(fw/W,fh/H);s=minS;tx=F.x-(W*s-fw)/2;ty=F.y-(H*s-fh)/2;
+    Object.assign(fr.style,{left:F.x+'px',top:F.y+'px',width:fw+'px',height:fh+'px'});im.style.width=W+'px';im.style.height=H+'px';ap()};
+  const pt=new Map();let g=null;
+  const snap=()=>{const a=[...pt.values()],r=st.getBoundingClientRect();
+    if(a.length===1)return{n:1,x:a[0].clientX,y:a[0].clientY,tx,ty};
+    if(a.length<2)return null;
+    return{n:2,d:Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY),mx:(a[0].clientX+a[1].clientX)/2-r.left,my:(a[0].clientY+a[1].clientY)/2-r.top,s,tx,ty}};
+  st.onpointerdown=e=>{st.setPointerCapture(e.pointerId);pt.set(e.pointerId,e);g=snap()};
+  st.onpointermove=e=>{if(!pt.has(e.pointerId)||!g)return;pt.set(e.pointerId,e);const a=[...pt.values()];
+    if(g.n===1&&a.length===1){tx=g.tx+a[0].clientX-g.x;ty=g.ty+a[0].clientY-g.y;ap()}
+    else if(g.n===2&&a.length>=2){const r=st.getBoundingClientRect(),d=Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY),
+      mx=(a[0].clientX+a[1].clientX)/2-r.left,my=(a[0].clientY+a[1].clientY)/2-r.top,ns=Math.min(minS*10,Math.max(minS,g.s*d/g.d));
+      tx=mx-(g.mx-g.tx)/g.s*ns;ty=my-(g.my-g.ty)/g.s*ns;s=ns;ap()}};
+  st.onpointerup=st.onpointercancel=e=>{pt.delete(e.pointerId);g=snap()};
+  const done=v=>{ov.hidden=true;URL.revokeObjectURL(url);im.removeAttribute('src');res(v)};
+  $('cok').onclick=()=>done([(F.x-tx)/s,(F.y-ty)/s,F.w/s,F.h/s]);
+  $('ccancel').onclick=()=>{done(null);$('sys').click()};
+  im.onload=lay;im.src=url;ov.hidden=false})}
 
 /* ---------- Info sheet (name builder) ---------- */
 let SU=null;
 function openSheet(blob,file){
   const m=file?{...file.meta}:{},body=$('sbody');body.innerHTML='';
-  const upd=()=>$('sname').textContent=buildName(P,m)+extOf(blob);
+  let names=new Set();
+  const upd=()=>{const b0=buildName(P,m)+extOf(blob),n=uniq(buildName(P,m),extOf(blob),names);
+    $('sname').textContent=n+(n!==b0?'  ⚠ name exists':'');$('sname').style.color=n!==b0?'var(--wr)':'var(--ac)'};
+  byPid(P.id).then(fs=>{names=new Set(fs.filter(x=>!file||x.id!==file.id).map(x=>x.name.toLowerCase()));upd()});
   for(const f of P.fields){if(!f.on)continue;
     if(!file){
       if(f.type==='num')m[f.id]=f.mode==='custom'?'':String(P.next[f.id]??f.start??1);
@@ -272,7 +306,7 @@ function openSheet(blob,file){
   upd();$('sheet').hidden=false;
   setTimeout(()=>{const i=body.querySelector('input:not([inputmode])')||body.querySelector('input');i&&i.focus()},150);
   $('scancel').textContent=file?'Cancel':'Retake';
-  $('scancel').onclick=()=>$('sheet').hidden=true;
+  $('scancel').onclick=()=>{$('sheet').hidden=true;if(!file)$('sys').click()};
   $('sok').onclick=async()=>{
     $('sok').disabled=true;
     try{
@@ -287,7 +321,7 @@ function openSheet(blob,file){
           else if(f.type!=='num'&&!f.plain)P.last[f.id]=m[f.id]}
         await put('p',P);toast('Saved: '+name)}
       $('sheet').hidden=true;
-      if(cur==='cam')updCount();else proj();
+      proj();if(!file&&P.reopen!==false)$('sys').click();
     }catch(e){alert('Save failed: '+e.message)}
     $('sok').disabled=false}}
 
