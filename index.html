@@ -55,14 +55,18 @@ header h1{font-size:20px;margin:0;flex:1}header b{flex:1;overflow:hidden;text-ov
 #toast{position:fixed;left:12px;right:12px;bottom:110px;background:#000d;border:1px solid var(--line);padding:10px 14px;border-radius:12px;z-index:40;text-align:center;font-size:14px;pointer-events:none}
 #crop{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;background:var(--bg)}
 #cst{flex:1;position:relative;overflow:hidden;touch-action:none;background:#000}
-#cimg{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-drag:none;will-change:transform}
+#ccv{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-drag:none;will-change:transform}
 #cfr{position:absolute;pointer-events:none;border:2px solid var(--ac);box-shadow:0 0 0 999px #000b}
+#menu{position:fixed;left:0;right:0;bottom:0;z-index:35;background:var(--panel);padding:12px 12px max(12px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;border-radius:16px 16px 0 0;box-shadow:0 -8px 30px #000a}
+.ck{font-size:22px;color:var(--ac)}
+#selbar button{padding:8px 4px;font-size:13px}
 </style>
 </head>
 <body>
 
 <div id="s-home" class="scr">
-  <header><h1>Camera Tool</h1><span id="stor" class="st"></span></header>
+  <header><h1>Camera Tool</h1><span id="off" class="st"></span><span id="stor" class="st"></span><button id="restore" class="ic">Restore</button></header>
+  <input id="rf" type="file" accept=".zip" hidden>
   <div id="pgrid" class="pgrid"></div>
   <button id="newp" class="fab p">＋ New Project</button>
 </div>
@@ -70,19 +74,21 @@ header h1{font-size:20px;margin:0;flex:1}header b{flex:1;overflow:hidden;text-ov
 <div id="s-form" class="scr" hidden>
   <header><button id="fback" class="ic">◀</button><b id="ftitle"></b></header>
   <div id="fbody" class="body"></div>
-  <div class="bottom"><button id="fdel" class="d" hidden>Delete</button><button id="fsave" class="p">Save</button></div>
+  <div class="bottom"><button id="fdel" class="d" hidden>Delete</button><button id="fcopy" hidden>Copy</button><button id="fsave" class="p">Save</button></div>
 </div>
 
 <div id="s-proj" class="scr" hidden>
   <header><button id="pback" class="ic">◀</button><b id="ptitle"></b><span id="pcount" class="st"></span>
-    <button id="pset" class="ic">⚙</button><button id="pzip" class="ic">⬇ ZIP</button></header>
+    <button id="psel" class="ic">☑</button><button id="pset" class="ic">⚙</button><button id="pmore" class="ic">⬇</button></header>
+  <div style="padding:0 12px 8px"><input id="psearch" placeholder="Search name…"></div>
   <div id="plist" class="body" style="padding:0 0 110px"></div>
   <button id="pcam" class="fab cfab">📷</button>
+  <div id="selbar" class="bottom" hidden><button id="sx">✕</button><button id="sall">All</button><button id="szip">ZIP</button><button id="sshare">Share</button><button id="seraser">Eraser</button><button id="sdel" class="d">🗑</button></div>
 </div>
 
 <div id="crop" hidden>
-  <div id="cst"><img id="cimg"><div id="cfr"></div></div>
-  <div class="bottom"><button id="ccancel">Retake</button><button id="cok" class="p">Use</button></div>
+  <div id="cst"><canvas id="ccv"></canvas><div id="cfr"></div></div>
+  <div class="bottom"><button id="crl">↺</button><button id="crr">↻</button><button id="ccancel">Retake</button><button id="cok" class="p">Use</button></div>
 </div>
 
 <div id="sheet" hidden><div id="sbox">
@@ -92,15 +98,16 @@ header h1{font-size:20px;margin:0;flex:1}header b{flex:1;overflow:hidden;text-ov
 </div></div>
 
 <div id="viewer" hidden><img id="vimg"><div id="vbar"><div id="vname" class="st"></div>
-  <div class="row"><button id="vedit">Edit info</button><button id="vdl">Download</button></div>
+  <div class="row"><button id="vl">↺</button><button id="vr">↻</button><button id="vedit">Edit info</button><button id="vdl">Download</button></div>
   <div class="row"><button id="vdel" class="d">Delete</button><button id="vclose" class="p">Close</button></div></div></div>
 
+<div id="menu" hidden></div>
 <div id="toast" hidden></div>
 <input id="sys" type="file" accept="image/*" capture="environment" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-if('serviceWorker' in navigator)navigator.serviceWorker.register('coi-serviceworker.js').catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('camera-sw.js').catch(()=>{});
 const $=id=>document.getElementById(id);
 const h=s=>{const t=document.createElement('template');t.innerHTML=s.trim();return t.content.firstChild};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -159,7 +166,7 @@ let D=null;
 function form(p){
   D=p?JSON.parse(JSON.stringify(p)):{name:'',fields:defFields()};
   D.size=D.size||{w:0,h:0};if(D.manual===undefined)D.manual=true;if(D.reopen===undefined)D.reopen=true;
-  $('ftitle').textContent=p?'Project Settings':'New Project';$('fdel').hidden=!p;show('form');renderForm()}
+  $('ftitle').textContent=p?'Project Settings':'New Project';$('fdel').hidden=!p;$('fcopy').hidden=!p;show('form');renderForm()}
 function renderForm(){
   const b=$('fbody');b.innerHTML='';
   b.appendChild(h(`<label class="lb">Project name<input id="fn" value="${esc(D.name)}" placeholder="e.g. Class 9 – Section A"></label>`));
@@ -208,37 +215,83 @@ $('fsave').onclick=async()=>{
     if(!old||!of||of.start!==f.start||p.next[f.id]==null)p.next[f.id]=f.start||1}
   await put('p',p);P=p;try{navigator.storage.persist&&navigator.storage.persist()}catch(e){}
   proj()};
+$('fcopy').onclick=async()=>{
+  const c=JSON.parse(JSON.stringify(D));c.id=uid();c.t=Date.now();c.name=(c.name||'Project')+' (copy)';c.next={};c.last={};
+  for(const f of c.fields)if(f.type==='num')c.next[f.id]=f.start||1;
+  await put('p',c);P=c;toast('Copied');proj()};
 $('fdel').onclick=async()=>{
   if(!confirm('Delete this project and all its photos?'))return;
   for(const f of await byPid(P.id)){await del('b',f.id);await del('f',f.id)}
   await del('p',P.id);P=null;home()};
 
 /* ---------- Project view ---------- */
-async function openProject(id){P=await get('p',id);proj()}
+let PF=[],SEL=null;
+const JSZ='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+const rec=f=>{const r={...f};delete r._u;return r};
+const safe=t=>String(t).replace(/[\\/:*?"<>|]+/g,'').trim()||'project';
+async function openProject(id){P=await get('p',id);SEL=null;$('psearch').value='';proj()}
 async function proj(){
   show('proj');rv();$('ptitle').textContent=P.name;
-  const fs=(await byPid(P.id)).sort((a,b)=>b.t-a.t);$('pcount').textContent=fs.length;
-  const l=$('plist');l.innerHTML='';
-  if(!fs.length)l.innerHTML='<div class="st" style="text-align:center;padding:40px 0">No photos yet</div>';
-  fs.forEach(f=>{const it=h(`<div class="it"><img src="${f.thumb?ou(f.thumb):''}"><div class="im"><b>${esc(f.name)}</b><small>${mb(f.size)} · ${dt(f.t)}</small></div></div>`);
-    it.onclick=()=>view(f);l.appendChild(it)})}
+  PF=(await byPid(P.id)).sort((a,b)=>b.t-a.t);PF.forEach(f=>f._u=f.thumb?ou(f.thumb):'');
+  if(SEL)SEL=new Set([...SEL].filter(id=>PF.some(f=>f.id===id)));
+  renderList()}
+const visible=()=>{const q=$('psearch').value.trim().toLowerCase();return PF.filter(f=>!q||f.name.toLowerCase().includes(q))};
+function renderList(){
+  const fs=visible(),l=$('plist');
+  $('pcount').textContent=fs.length===PF.length?PF.length:fs.length+'/'+PF.length;l.innerHTML='';
+  $('selbar').hidden=!SEL;$('pcam').hidden=!!SEL;
+  if(!fs.length)l.innerHTML='<div class="st" style="text-align:center;padding:40px 0">'+(PF.length?'No match':'No photos yet')+'</div>';
+  fs.forEach(f=>{const it=h(`<div class="it">${SEL?`<span class="ck">${SEL.has(f.id)?'☑':'☐'}</span>`:''}<img src="${f._u}"><div class="im"><b>${esc(f.name)}</b><small>${mb(f.size)} · ${dt(f.t)}</small></div></div>`);
+    it.onclick=()=>{if(SEL){SEL.has(f.id)?SEL.delete(f.id):SEL.add(f.id);renderList()}else view(f)};l.appendChild(it)})}
+$('psearch').oninput=renderList;
 $('pback').onclick=home;
 $('pset').onclick=()=>form(P);
-$('pzip').onclick=async()=>{
-  const fs=await byPid(P.id);if(!fs.length)return toast('No photos');
-  const z=new JSZip();let i=0;
-  for(const f of fs){toast('Zipping '+(++i)+' / '+fs.length);z.file(f.name,(await get('b',f.id)).blob)}
-  dl(await z.generateAsync({type:'blob',compression:'STORE'}),P.name.replace(/[\\/:*?"<>|]+/g,'')+'.zip');toast('Done')};
+$('psel').onclick=()=>{SEL=SEL?null:new Set();renderList()};
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+async function zipFiles(list,name){
+  if(!list.length)return toast('No photos');
+  const z=new JSZip();let i=0;
+  for(const f of list){toast('Zipping '+(++i)+' / '+list.length);z.file(f.name,(await get('b',f.id)).blob)}
+  dl(await z.generateAsync({type:'blob',compression:'STORE'}),name+'.zip');toast('Done')}
+async function backup(){
+  if(!PF.length&&!confirm('No photos. Back up settings only?'))return;
+  const z=new JSZip(),ph=[];let i=0;
+  for(const f of PF){toast('Backing up '+(++i)+' / '+PF.length);z.file('photos/'+f.name,(await get('b',f.id)).blob);ph.push({name:f.name,meta:f.meta,t:f.t})}
+  z.file('project.json',JSON.stringify({v:1,project:P,photos:ph}));
+  dl(await z.generateAsync({type:'blob',compression:'STORE'}),safe(P.name)+'_backup.zip');toast('Backup ready')}
+function menu(items){const m=$('menu');m.innerHTML='';
+  items.forEach(([t,fn])=>{const b=h('<button>'+esc(t)+'</button>');b.onclick=()=>{m.hidden=true;fn()};m.appendChild(b)});
+  const c=h('<button class="d">Cancel</button>');c.onclick=()=>m.hidden=true;m.appendChild(c);m.hidden=false}
+$('pmore').onclick=()=>menu([['All photos (ZIP)',()=>zipFiles(PF,safe(P.name))],['Backup (photos + settings)',backup]]);
+/* selection actions */
+const chosen=()=>PF.filter(f=>SEL&&SEL.has(f.id)).sort((a,b)=>a.t-b.t);
+$('sx').onclick=()=>{SEL=null;renderList()};
+$('sall').onclick=()=>{const v=visible();SEL=v.every(f=>SEL.has(f.id))?new Set():new Set(v.map(f=>f.id));renderList()};
+$('szip').onclick=()=>{const c=chosen();if(!c.length)return toast('Select photos');zipFiles(c,safe(P.name)+'_selected')};
+$('sshare').onclick=async()=>{const c=chosen();if(!c.length)return toast('Select photos');
+  const files=[];for(const f of c){const b=(await get('b',f.id)).blob;files.push(new File([b],f.name,{type:b.type||'image/jpeg'}))}
+  try{if(navigator.canShare&&navigator.canShare({files}))await navigator.share({files});else toast('Share not supported here')}catch(e){}};
+$('seraser').onclick=()=>{const c=chosen();if(!c.length)return toast('Select photos');
+  try{localStorage.setItem('toEraser',JSON.stringify({ids:c.map(f=>f.id)}))}catch(e){}
+  location.href=new URL('../eraser/#cam',location.href).href};
+$('sdel').onclick=async()=>{const c=chosen();if(!c.length)return toast('Select photos');
+  if(!confirm('Delete '+c.length+' photo(s)?'))return;
+  for(const f of c){await del('b',f.id);await del('f',f.id)}SEL=null;proj()};
 
 /* ---------- Viewer ---------- */
-let VF=null,VB=null,VU=null;
+let VF=null,VB=null,VU=null,VD=false;
 async function view(f){VF=f;VB=(await get('b',f.id)).blob;VU=URL.createObjectURL(VB);$('vimg').src=VU;$('vname').textContent=f.name;$('viewer').hidden=false}
-function closeV(){$('viewer').hidden=true;VU&&URL.revokeObjectURL(VU);VU=null;$('vimg').removeAttribute('src')}
+function closeV(){$('viewer').hidden=true;VU&&URL.revokeObjectURL(VU);VU=null;$('vimg').removeAttribute('src');if(VD){VD=false;proj()}}
 $('vclose').onclick=closeV;
 $('vdl').onclick=()=>dl(VB,VF.name);
 $('vedit').onclick=()=>{const f=VF,b=VB;closeV();openSheet(b,f)};
-$('vdel').onclick=async()=>{if(!confirm('Delete this photo?'))return;await del('b',VF.id);await del('f',VF.id);closeV();proj()};
+$('vdel').onclick=async()=>{if(!confirm('Delete this photo?'))return;await del('b',VF.id);await del('f',VF.id);VD=false;closeV();proj()};
+async function rotPhoto(deg){
+  const bm=await createImageBitmap(VB,{imageOrientation:'from-image'}),c=rotC(bm,deg,1e9);bm.close&&bm.close();
+  const blob=await new Promise(r=>c.toBlob(r,/png/i.test(VB.type)?'image/png':'image/jpeg',0.95));
+  VB=blob;await put('b',{id:VF.id,blob});VF.size=blob.size;VF.thumb=await mkThumb(blob);await put('f',rec(VF));
+  URL.revokeObjectURL(VU);VU=URL.createObjectURL(blob);$('vimg').src=VU;VD=true}
+$('vl').onclick=()=>rotPhoto(270);$('vr').onclick=()=>rotPhoto(90);
 
 /* ---------- Capture with the system camera ---------- */
 $('pcam').onclick=()=>$('sys').click();
@@ -248,20 +301,23 @@ function centerCrop(w,h,S){const ar=S.w/S.h;let cw=w,ch=h;if(w/h>ar)cw=h*ar;else
 function renderCrop(bm,S,r){const c=document.createElement('canvas');c.width=S.w;c.height=S.h;const x=c.getContext('2d');
   x.imageSmoothingQuality='high';x.drawImage(bm,r[0],r[1],r[2],r[3],0,0,S.w,S.h);bm.close&&bm.close();
   return new Promise(o=>c.toBlob(o,'image/jpeg',0.95))}
+function rotC(src,deg,maxS){
+  const w=src.width,h=src.height,w2=deg%180?h:w,h2=deg%180?w:h,k=Math.min(1,maxS/Math.max(w2,h2));
+  const c=document.createElement('canvas');c.width=Math.round(w2*k);c.height=Math.round(h2*k);
+  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.translate(c.width/2,c.height/2);x.rotate(deg*Math.PI/180);x.scale(k,k);x.drawImage(src,-w/2,-h/2);return c}
 async function fitPhoto(f){
   const S=P.size;if(!S||!S.w||!S.h)return f;
   const bm=await createImageBitmap(f,{imageOrientation:'from-image'});
   if(P.manual===false)return renderCrop(bm,S,centerCrop(bm.width,bm.height,S));
-  const r=await cropUI(f,bm.width,bm.height,S);
-  if(!r){bm.close&&bm.close();return null}
-  return renderCrop(bm,S,r)}
-function cropUI(file,W,H,S){return new Promise(res=>{
-  const ov=$('crop'),st=$('cst'),im=$('cimg'),fr=$('cfr'),url=URL.createObjectURL(file);
-  let s=1,tx=0,ty=0,minS=1,F={x:0,y:0,w:0,h:0};
-  const ap=()=>{tx=Math.min(F.x,Math.max(F.x+F.w-W*s,tx));ty=Math.min(F.y,Math.max(F.y+F.h-H*s,ty));im.style.transform=`translate(${tx}px,${ty}px) scale(${s})`};
-  const lay=()=>{const sw=st.clientWidth,sh=st.clientHeight,m=14,ar=S.w/S.h;let fw=sw-2*m,fh=fw/ar;if(fh>sh-2*m){fh=sh-2*m;fw=fh*ar}
+  const out=await cropUI(bm,S);bm.close&&bm.close();return out}
+function cropUI(bm,S){return new Promise(res=>{
+  const ov=$('crop'),st=$('cst'),cv=$('ccv'),fr=$('cfr');
+  let rot=0,W=0,H=0,s=1,tx=0,ty=0,minS=1,F={x:0,y:0,w:0,h:0};
+  const ap=()=>{tx=Math.min(F.x,Math.max(F.x+F.w-W*s,tx));ty=Math.min(F.y,Math.max(F.y+F.h-H*s,ty));cv.style.transform=`translate(${tx}px,${ty}px) scale(${s})`};
+  const load=()=>{const d=rotC(bm,rot,2400);W=d.width;H=d.height;cv.width=W;cv.height=H;cv.getContext('2d').drawImage(d,0,0);
+    const sw=st.clientWidth,sh=st.clientHeight,m=14,ar=S.w/S.h;let fw=sw-2*m,fh=fw/ar;if(fh>sh-2*m){fh=sh-2*m;fw=fh*ar}
     F={x:(sw-fw)/2,y:(sh-fh)/2,w:fw,h:fh};minS=Math.max(fw/W,fh/H);s=minS;tx=F.x-(W*s-fw)/2;ty=F.y-(H*s-fh)/2;
-    Object.assign(fr.style,{left:F.x+'px',top:F.y+'px',width:fw+'px',height:fh+'px'});im.style.width=W+'px';im.style.height=H+'px';ap()};
+    Object.assign(fr.style,{left:F.x+'px',top:F.y+'px',width:fw+'px',height:fh+'px'});cv.style.width=W+'px';cv.style.height=H+'px';ap()};
   const pt=new Map();let g=null;
   const snap=()=>{const a=[...pt.values()],r=st.getBoundingClientRect();
     if(a.length===1)return{n:1,x:a[0].clientX,y:a[0].clientY,tx,ty};
@@ -274,10 +330,12 @@ function cropUI(file,W,H,S){return new Promise(res=>{
       mx=(a[0].clientX+a[1].clientX)/2-r.left,my=(a[0].clientY+a[1].clientY)/2-r.top,ns=Math.min(minS*10,Math.max(minS,g.s*d/g.d));
       tx=mx-(g.mx-g.tx)/g.s*ns;ty=my-(g.my-g.ty)/g.s*ns;s=ns;ap()}};
   st.onpointerup=st.onpointercancel=e=>{pt.delete(e.pointerId);g=snap()};
-  const done=v=>{ov.hidden=true;URL.revokeObjectURL(url);im.removeAttribute('src');res(v)};
-  $('cok').onclick=()=>done([(F.x-tx)/s,(F.y-ty)/s,F.w/s,F.h/s]);
-  $('ccancel').onclick=()=>{done(null);$('sys').click()};
-  im.onload=lay;im.src=url;ov.hidden=false})}
+  $('crl').onclick=()=>{rot=(rot+270)%360;load()};
+  $('crr').onclick=()=>{rot=(rot+90)%360;load()};
+  $('cok').onclick=async()=>{const full=rotC(bm,rot,1e9),k=full.width/W;
+    const r=[(F.x-tx)/s*k,(F.y-ty)/s*k,F.w/s*k,F.h/s*k];ov.hidden=true;res(await renderCrop(full,S,r))};
+  $('ccancel').onclick=()=>{ov.hidden=true;res(null);$('sys').click()};
+  ov.hidden=false;load()})}
 
 /* ---------- Info sheet (name builder) ---------- */
 let SU=null;
@@ -312,7 +370,7 @@ function openSheet(blob,file){
     try{
       const names=new Set((await byPid(P.id)).filter(x=>!file||x.id!==file.id).map(x=>x.name.toLowerCase()));
       const name=uniq(buildName(P,m),extOf(blob),names);
-      if(file){file.name=name;file.meta=m;await put('f',file);toast('Updated')}
+      if(file){file.name=name;file.meta=m;await put('f',rec(file));toast('Updated')}
       else{
         const id=uid(),thumb=await mkThumb(blob);
         await put('b',{id,blob});await put('f',{id,pid:P.id,name,meta:m,size:blob.size,t:Date.now(),thumb});
@@ -325,7 +383,18 @@ function openSheet(blob,file){
     }catch(e){alert('Save failed: '+e.message)}
     $('sok').disabled=false}}
 
-home();
+$('restore').onclick=()=>$('rf').click();
+$('rf').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{toast('Reading…');const z=await JSZip.loadAsync(f),j=z.file('project.json');if(!j)throw new Error('Not a backup file');
+    const info=JSON.parse(await j.async('string')),p=info.project;p.id=uid();p.t=Date.now();
+    let i=0;for(const ph of info.photos){const ent=z.file('photos/'+ph.name);if(!ent)continue;toast('Restoring '+(++i)+' / '+info.photos.length);
+      const blob=new Blob([await ent.async('arraybuffer')],{type:/\.png$/i.test(ph.name)?'image/png':'image/jpeg'}),id=uid();
+      await put('b',{id,blob});await put('f',{id,pid:p.id,name:ph.name,meta:ph.meta,size:blob.size,t:ph.t,thumb:await mkThumb(blob)})}
+    await put('p',p);toast('Restored');home()}catch(x){alert('Restore failed: '+x.message)}};
+async function offChk(){try{let ok=false;for(const k of await caches.keys()){const c=await caches.open(k);
+  if(await c.match(new URL('./index.html',location.href).href)&&await c.match(JSZ))ok=true}
+  $('off').textContent=ok?'Offline ✓':''}catch(e){}}
+home();offChk();
 </script>
 </body>
 </html>
