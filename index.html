@@ -165,7 +165,7 @@ const defFields=()=>[
 let D=null;
 function form(p){
   D=p?JSON.parse(JSON.stringify(p)):{name:'',fields:defFields()};
-  D.size=D.size||{w:0,h:0};if(D.manual===undefined)D.manual=true;if(D.reopen===undefined)D.reopen=true;
+  D.size=D.size||{w:0,h:0};if(D.manual===undefined)D.manual=true;if(D.reopen===undefined)D.reopen=true;if(D.maxSide===undefined)D.maxSide=p?0:2400;
   $('ftitle').textContent=p?'Project Settings':'New Project';$('fdel').hidden=!p;$('fcopy').hidden=!p;show('form');renderForm()}
 function renderForm(){
   const b=$('fbody');b.innerHTML='';
@@ -175,11 +175,12 @@ function renderForm(){
   b.appendChild(h(`<div class="fr"><div class="lb" style="margin:0">Photo size (crop)</div>
     <div class="chips">${pre.map(x=>`<button class="chip ${sz.w===x[1]&&sz.h===x[2]?'on':''}" data-w="${x[1]}" data-h="${x[2]}">${x[0]}</button>`).join('')}</div>
     <div class="r2"><input id="fw" type="number" inputmode="numeric" placeholder="W" value="${sz.w||''}"><span class="st">×</span><input id="fh" type="number" inputmode="numeric" placeholder="H" value="${sz.h||''}"></div>
+    <div class="r2"><span class="st" style="flex:2">Max long side px (0 = original)</span><input id="fms" type="number" inputmode="numeric" value="${D.maxSide||0}"></div>
     <label class="r2 st"><input type="checkbox" id="fm" style="width:22px;height:22px" ${D.manual?'checked':''}> Adjust each photo (off = auto center crop)</label>
     <label class="r2 st"><input type="checkbox" id="fro" style="width:22px;height:22px" ${D.reopen?'checked':''}> Open camera again after save</label></div>`));
   const sw=()=>{const w=parseInt($('fw').value)||0,hh=parseInt($('fh').value)||0;D.size=w&&hh?{w,h:hh}:{w:0,h:0}};
   $('fw').oninput=$('fh').oninput=()=>{sw();b.querySelectorAll('.chip[data-w]').forEach(c=>c.classList.remove('on'))};
-  $('fm').onchange=e=>D.manual=e.target.checked;$('fro').onchange=e=>D.reopen=e.target.checked;
+  $('fm').onchange=e=>D.manual=e.target.checked;$('fms').oninput=e=>D.maxSide=parseInt(e.target.value)||0;$('fro').onchange=e=>D.reopen=e.target.checked;
   D.fields.forEach((f,i)=>{
     const lock=!f.custom;
     b.appendChild(h(`<div class="fr" data-i="${i}"><div class="r1">
@@ -250,11 +251,18 @@ $('psel').onclick=()=>{SEL=SEL?null:new Set();renderList()};
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
 async function zipFiles(list,name){
   if(!list.length)return toast('No photos');
-  const z=new JSZip();let i=0;
-  for(const f of list){toast('Zipping '+(++i)+' / '+list.length);z.file(f.name,(await get('b',f.id)).blob)}
-  dl(await z.generateAsync({type:'blob',compression:'STORE'}),name+'.zip');toast('Done')}
+  const LIM=40*1048576,parts=[];let cu=[],sz=0;
+  for(const f of [...list].sort((a,b)=>a.t-b.t)){if(cu.length&&sz+f.size>LIM){parts.push(cu);cu=[];sz=0}cu.push(f);sz+=f.size}
+  if(cu.length)parts.push(cu);
+  const make=async(arr,fn)=>{const z=new JSZip();let i=0;
+    for(const f of arr){toast('Zipping '+(++i)+' / '+arr.length);z.file(f.name,(await get('b',f.id)).blob)}
+    dl(await z.generateAsync({type:'blob',compression:'STORE',streamFiles:true}),fn);toast('Done')};
+  if(parts.length===1)return make(parts[0],name+'.zip');
+  toast('Large set: choose a part to download');
+  menu(parts.map((a,i)=>['Part '+(i+1)+' / '+parts.length+' · '+a.length+' photos · '+mb(a.reduce((t,f)=>t+f.size,0)),()=>make(a,name+'_part'+(i+1)+'.zip')]))}
 async function backup(){
   if(!PF.length&&!confirm('No photos. Back up settings only?'))return;
+  if(PF.reduce((t,f)=>t+f.size,0)>150*1048576&&!confirm('This backup is large and may crash the browser. Continue?'))return;
   const z=new JSZip(),ph=[];let i=0;
   for(const f of PF){toast('Backing up '+(++i)+' / '+PF.length);z.file('photos/'+f.name,(await get('b',f.id)).blob);ph.push({name:f.name,meta:f.meta,t:f.t})}
   z.file('project.json',JSON.stringify({v:1,project:P,photos:ph}));
@@ -262,7 +270,7 @@ async function backup(){
 function menu(items){const m=$('menu');m.innerHTML='';
   items.forEach(([t,fn])=>{const b=h('<button>'+esc(t)+'</button>');b.onclick=()=>{m.hidden=true;fn()};m.appendChild(b)});
   const c=h('<button class="d">Cancel</button>');c.onclick=()=>m.hidden=true;m.appendChild(c);m.hidden=false}
-$('pmore').onclick=()=>menu([['All photos (ZIP)',()=>zipFiles(PF,safe(P.name))],['Backup (photos + settings)',backup]]);
+$('pmore').onclick=()=>menu([['All photos (ZIP) · '+PF.length+' · '+mb(PF.reduce((t,f)=>t+f.size,0)),()=>zipFiles(PF,safe(P.name))],['Backup (photos + settings)',backup]]);
 /* selection actions */
 const chosen=()=>PF.filter(f=>SEL&&SEL.has(f.id)).sort((a,b)=>a.t-b.t);
 $('sx').onclick=()=>{SEL=null;renderList()};
@@ -306,7 +314,14 @@ function rotC(src,deg,maxS){
   const c=document.createElement('canvas');c.width=Math.round(w2*k);c.height=Math.round(h2*k);
   const x=c.getContext('2d');x.imageSmoothingQuality='high';x.translate(c.width/2,c.height/2);x.rotate(deg*Math.PI/180);x.scale(k,k);x.drawImage(src,-w/2,-h/2);return c}
 async function fitPhoto(f){
-  const S=P.size;if(!S||!S.w||!S.h)return f;
+  const S=P.size;
+  if(!S||!S.w||!S.h){
+    const ms=P.maxSide||0;if(!ms)return f;
+    const bm0=await createImageBitmap(f,{imageOrientation:'from-image'}),mx=Math.max(bm0.width,bm0.height);
+    if(mx<=ms){bm0.close&&bm0.close();return f}
+    const k=ms/mx,c=document.createElement('canvas');c.width=Math.round(bm0.width*k);c.height=Math.round(bm0.height*k);
+    const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(bm0,0,0,c.width,c.height);bm0.close&&bm0.close();
+    return new Promise(o=>c.toBlob(o,'image/jpeg',0.92))}
   const bm=await createImageBitmap(f,{imageOrientation:'from-image'});
   if(P.manual===false)return renderCrop(bm,S,centerCrop(bm.width,bm.height,S));
   const out=await cropUI(bm,S);bm.close&&bm.close();return out}
